@@ -75,4 +75,7 @@ To run TL;DS on your local machine, follow these steps:
 
 6. Access the web interface at the URL provided in the output of the previous command.
 
+## Thoughts for Improvements
+While a 10 second wait for results may not seem like a long time, it is, especially realtive to a direct Google search. The vast majority of this time is spent waiting for the SERP API to respond with the Google results. Paid-for SERP APIs would likely be significantly faster, making this project more usable.
+
 Happy searching!
