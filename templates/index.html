@@ -1,0 +1,449 @@
+<html>
+<head>
+    <title>Too Lazy; Didn't Search</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='black'/></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .search-input:focus + .search-button,
+        .search-input:not(:placeholder-shown) + .search-button {
+            background-color: black;
+            color: white;
+        }
+        .search-input:focus + .search-button i,
+        .search-input:not(:placeholder-shown) + .search-button i {
+            color: white;
+        }
+        .search-button {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .search-button i {
+            transition: color 0.3s ease;
+        }
+        .circle {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: black;
+            transition: all 0.5s ease-in-out;
+            z-index: 10;
+        }
+        #mainContainer {
+            transition: all 0.5s ease-in-out;
+            opacity: 0;
+            transform: scale(0.5);
+            filter: blur(10px);
+        }
+        #mainContainer.loaded {
+            opacity: 1;
+            transform: scale(1);
+            filter: blur(0);
+        }
+
+        .result-item {
+            background-color: #f3f4f6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .ai-content a {
+            color: blue;
+            text-decoration: underline;
+        }
+
+        .ai-content a:hover {
+            text-decoration: none;
+        }
+
+        .preview-bubble {
+            width: 200px;
+            height: 150px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out;
+        }
+
+        .preview-bubble:hover {
+            transform: scale(1.05);
+        }
+
+        .preview-image-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f3f4f6;
+            height: 100px;
+        }
+
+        .preview-favicon {
+            max-width: 32px;
+            max-height: 32px;
+            object-fit: contain;
+        }
+
+        .preview-content {
+            padding: 8px;
+        }
+
+        .preview-title {
+            font-size: 14px;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .preview-url {
+            font-size: 12px;
+            color: #4a5568;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #aboutCard {
+            max-width: 48rem; 
+            margin-left: auto;
+            margin-right: auto;
+            left: 0;
+            right: 0;
+        }
+
+        #searchResults {
+            position: fixed;
+            top: 4rem;
+            left: 1rem;
+            right: 1rem;
+            width: calc(100% - 2rem);
+            max-height: calc(100vh - 5rem);
+            overflow-y: auto;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 1.5rem;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-r from-gray-200 to-sky-200 flex items-center justify-center min-h-screen">
+    <div id="mainContainer" class="bg-white rounded-lg shadow-lg p-10 w-[48rem] h-96 flex flex-col justify-center">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold">TL;DS <span class="text-black">●</span></h1>
+        </div>
+        <div class="relative">
+            <textarea id="searchInput" placeholder="What are you looking for?" class="search-input w-full p-4 pl-10 rounded-lg bg-gray-100 text-gray-500 focus:outline-none h-24 align-top resize-none" rows="3" maxlength="230"></textarea>
+            <i class="fas fa-search absolute left-3 top-5 text-gray-400"></i>
+            <button id="searchButton" class="search-button absolute right-2 bottom-4 bg-gray-200 p-2 rounded-full">
+                <i class="fas fa-arrow-right text-gray-400"></i>
+            </button>
+        </div>
+    </div>
+    <div id="circle" class="circle hidden"></div>
+    <button id="newSearchButton" class="fixed top-4 left-4 bg-black text-white px-4 py-2 rounded-full hidden">New Search</button>
+    <div id="searchStatus" class="fixed top-6 left-12 text-gray-500 italic text-sm hidden">Searching...</div>
+    <div id="searchResults" class="fixed top-4rem left-1rem w-[calc(100%-2rem)] max-h-[calc(100vh-5rem)] overflow-y-auto bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-2xl font-bold mb-4">Search Results</h2>
+        <div class="mb-4">
+            <button id="aiTab" class="px-4 py-2 bg-gray-200 rounded-tl-lg rounded-tr-lg">AI Search</button>
+            <button id="googleTab" class="px-4 py-2 bg-gray-100 rounded-tl-lg rounded-tr-lg">Google Search</button>
+            <button id="rawTab" class="px-4 py-2 bg-gray-100 rounded-tl-lg rounded-tr-lg">Raw Data</button>
+        </div>
+        <div id="aiContent" class="result-content">
+            <div class="ai-answer mb-4"></div>
+            <div class="link-previews flex flex-wrap gap-4"></div>
+        </div>
+        <div id="googleContent" class="result-content hidden">
+            <div id="resultsList"></div>
+        </div>
+        <div id="rawContent" class="result-content hidden">
+            <pre id="rawData" class="bg-gray-100 p-4 rounded-lg overflow-x-auto"></pre>
+        </div>
+    </div>
+
+    <!-- About button and expandable card -->
+    <button id="aboutButton" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-100 text-gray-700 px-4 py-2 rounded-full hover:bg-gray-200 transition-colors duration-300">
+        About this tool &#9660;
+    </button>
+
+    <div id="aboutCard" class="fixed bottom-0 left-0 w-full bg-white shadow-lg rounded-t-lg p-6 transform translate-y-full transition-all duration-300 ease-in-out">
+        <div class="max-w-4xl mx-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Too Lazy; Didn't Search <span class="text-black">●</span></h2>
+                <button id="closeAboutButton" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-full hover:bg-gray-200 transition-colors duration-300">
+                    Close <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <p>Created by Andrew Campi, this is a replication of OpenAI's SearchGPT, before it was released to the public.</p>
+                <p>It uses OpenAI's GPT-4o-mini model, and a custom SERP API to get accurate information for your query. It uses LangChain to form smaller queries, fetch those pages, and read them, deciding when it has enough information to answer your query properly. It has the ability to string multiple searches together if the original query is complex.</p>
+                <p>This is a research project and is not affiliated with OpenAI.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const mainContainer = document.getElementById('mainContainer');
+        const circle = document.getElementById('circle');
+        const searchStatus = document.getElementById('searchStatus');
+        const searchResults = document.getElementById('searchResults');
+        const aiTab = document.getElementById('aiTab');
+        const googleTab = document.getElementById('googleTab');
+        const rawTab = document.getElementById('rawTab');
+        const aiContent = document.getElementById('aiContent');
+        const googleContent = document.getElementById('googleContent');
+        const rawContent = document.getElementById('rawContent');
+        const rawData = document.getElementById('rawData');
+
+        const newSearchButton = document.getElementById('newSearchButton');
+
+        searchInput.addEventListener('input', function() {
+            if (this.value.length > 0) {
+                searchButton.style.backgroundColor = 'black';
+                searchButton.style.color = 'white';
+                searchButton.querySelector('i').style.color = 'white';
+            } else {
+                searchButton.style.backgroundColor = '';
+                searchButton.style.color = '';
+                searchButton.querySelector('i').style.color = '';
+            }
+        });
+
+        function showTab(tabContent) {
+            [aiContent, googleContent, rawContent].forEach(content => content.classList.add('hidden'));
+            tabContent.classList.remove('hidden');
+        }
+
+        aiTab.addEventListener('click', () => {
+            showTab(aiContent);
+            [aiTab, googleTab, rawTab].forEach(tab => tab.classList.remove('bg-gray-200'));
+            aiTab.classList.add('bg-gray-200');
+        });
+
+        googleTab.addEventListener('click', () => {
+            showTab(googleContent);
+            [aiTab, googleTab, rawTab].forEach(tab => tab.classList.remove('bg-gray-200'));
+            googleTab.classList.add('bg-gray-200');
+        });
+
+        rawTab.addEventListener('click', () => {
+            showTab(rawContent);
+            [aiTab, googleTab, rawTab].forEach(tab => tab.classList.remove('bg-gray-200'));
+            rawTab.classList.add('bg-gray-200');
+        });
+
+        function extractLinksFromMarkdown(markdown) {
+            const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+            const links = [];
+            let match;
+
+            while ((match = linkRegex.exec(markdown)) !== null) {
+                links.push({
+                    text: match[1],
+                    url: match[2]
+                });
+            }
+
+            return links;
+        }
+
+        function getFaviconUrl(domain) {
+            return fetch(`/favicon?domain=${encodeURIComponent(domain)}`)
+                .then(response => response.json())
+                .then(data => data.favicon_url);
+        }
+
+        function createPreviewBubble(link) {
+            const bubble = document.createElement('div');
+            bubble.className = 'preview-bubble';
+            const domain = new URL(link.url).hostname;
+
+            getFaviconUrl(domain).then(faviconUrl => {
+                bubble.innerHTML = `
+                    <div class="preview-image-container flex items-center justify-center bg-gray-100" style="height: 100px;">
+                        <img src="${faviconUrl}" alt="Favicon" class="preview-favicon" style="max-width: 32px; max-height: 32px;">
+                    </div>
+                    <div class="preview-content">
+                        <div class="preview-title">${link.text}</div>
+                        <div class="preview-url">${domain}</div>
+                    </div>
+                `;
+            });
+
+            bubble.addEventListener('click', () => window.open(link.url, '_blank'));
+            return bubble;
+        }
+
+        function animateSearch() {
+            if (searchInput.value.trim().length === 0) return;
+
+            const containerRect = mainContainer.getBoundingClientRect();
+            const buttonRect = searchButton.getBoundingClientRect();
+
+            // Position the circle at the center of the search button
+            const circleX = buttonRect.left + buttonRect.width / 2 - 10;
+            const circleY = buttonRect.top + buttonRect.height / 2 - 10;
+            
+            circle.style.left = circleX + 'px';
+            circle.style.top = circleY + 'px';
+            circle.classList.remove('hidden');
+
+            // Animate the container to shrink into the circle
+            setTimeout(() => {
+                mainContainer.style.transition = 'all 0.5s ease-in-out';
+                mainContainer.style.transform = 'scale(0.01)';
+                mainContainer.style.opacity = '0';
+                mainContainer.style.transformOrigin = `${circleX - containerRect.left}px ${circleY - containerRect.top}px`;
+
+                // Move the circle to the top left
+                setTimeout(() => {
+                    circle.style.transition = 'all 0.5s ease-in-out';
+                    circle.style.left = '20px';
+                    circle.style.top = '20px';
+
+                    // Show the "Searching..." status after the circle moves
+                    setTimeout(() => {
+                        searchStatus.classList.remove('hidden');
+                        
+                        // Perform the search
+                        fetch(`/search?q=${encodeURIComponent(searchInput.value)}`)
+                            .then(response => response.json())
+                            .then(data => {
+                                // Hide the "Searching..." status
+                                searchStatus.classList.add('hidden');
+
+                                // Display the AI answer with markdown rendering
+                                const aiAnswer = aiContent.querySelector('.ai-answer');
+                                aiAnswer.innerHTML = `<div class="ai-content">${marked.parse(data.answer)}</div>`;
+
+                                // Extract links from the markdown and create preview bubbles
+                                const links = extractLinksFromMarkdown(data.answer);
+                                const linkPreviews = aiContent.querySelector('.link-previews');
+                                linkPreviews.innerHTML = '';
+                                links.forEach(link => {
+                                    const bubble = createPreviewBubble(link);
+                                    linkPreviews.appendChild(bubble);
+                                });
+
+                                // Display the search results
+                                const resultsList = document.getElementById('resultsList');
+                                resultsList.innerHTML = '';
+
+                                data.results.forEach(result => {
+                                    const resultItem = document.createElement('div');
+                                    resultItem.className = 'result-item';
+                                    const domain = new URL(result.url).hostname;
+                                    resultItem.innerHTML = `
+                                        <h3 class="text-lg font-semibold mb-2">${result.title}</h3>
+                                        <div class="flex items-center mb-2">
+                                            <img src="${result.favicon}" alt="Favicon" class="w-4 h-4 mr-2">
+                                            <a href="${result.url}" class="text-blue-500 hover:underline" target="_blank">${domain}</a>
+                                        </div>
+                                        <p class="text-sm text-gray-600">${result.description}</p>
+                                    `;
+                                    resultsList.appendChild(resultItem);
+                                });
+
+                                // Display the raw data
+                                rawData.textContent = JSON.stringify(data, null, 2);
+
+                                // Show the results with a fade-in effect
+                                searchResults.style.visibility = 'visible';
+                                searchResults.style.opacity = '1';
+
+                                // Hide the circle and show the "New Search" button
+                                circle.classList.add('hidden');
+                                newSearchButton.classList.remove('hidden');
+
+                                // Set the default tab to AI Search
+                                showTab(aiContent);
+                                [aiTab, googleTab, rawTab].forEach(tab => tab.classList.remove('bg-gray-200'));
+                                aiTab.classList.add('bg-gray-200');
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                // Hide the "Searching..." status and show an error message
+                                searchStatus.classList.add('hidden');
+                                alert('An error occurred while searching. Please try again.');
+                            });
+                    }, 500); // Wait for the circle to move before showing "Searching..."
+                }, 500); // Wait for the container to shrink before moving the circle
+            }, 50);
+        }
+
+        // Add event listener for the "New Search" button
+        newSearchButton.addEventListener('click', () => {
+            // Hide search results and "New Search" button
+            searchResults.style.visibility = 'hidden';
+            searchResults.style.opacity = '0';
+            newSearchButton.classList.add('hidden');
+
+            // Reset and show the main container
+            mainContainer.style.transition = 'all 0.5s ease-in-out';
+            mainContainer.style.transform = 'scale(1)';
+            mainContainer.style.opacity = '1';
+            mainContainer.style.transformOrigin = 'center center';
+
+            // Clear the search input
+            searchInput.value = '';
+
+            // Reset the search button style
+            searchButton.style.backgroundColor = '';
+            searchButton.style.color = '';
+            searchButton.querySelector('i').style.color = '';
+        });
+
+        searchButton.addEventListener('click', animateSearch);
+        searchInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                animateSearch();
+            }
+        });
+
+        // Add this new function for the initial animation
+        function animateInitialLoad() {
+            setTimeout(() => {
+                mainContainer.classList.add('loaded');
+            }, 100);
+        }
+
+        // Call the function when the window has loaded
+        window.addEventListener('load', animateInitialLoad);
+
+        // Add this new code at the end of the script
+        const aboutButton = document.getElementById('aboutButton');
+        const closeAboutButton = document.getElementById('closeAboutButton');
+        const aboutCard = document.getElementById('aboutCard');
+        let isAboutCardVisible = false;
+
+        function toggleAboutCard() {
+            isAboutCardVisible = !isAboutCardVisible;
+            if (isAboutCardVisible) {
+                aboutCard.style.transform = 'translateY(0)';
+                aboutButton.innerHTML = 'About this tool &#9650;';
+                document.body.style.paddingBottom = aboutCard.offsetHeight + 'px';
+            } else {
+                aboutCard.style.transform = 'translateY(100%)';
+                aboutButton.innerHTML = 'About this tool &#9660;';
+                document.body.style.paddingBottom = '0';
+            }
+        }
+
+        aboutButton.addEventListener('click', toggleAboutCard);
+        closeAboutButton.addEventListener('click', toggleAboutCard);
+    </script>
+</body>
+</html>
